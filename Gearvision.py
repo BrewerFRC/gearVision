@@ -201,7 +201,7 @@ def process():
 
         if markercount == 1 :
             table.putNumber("distance", (Yr[0]+Yr[1])/2.0)
-            table.putNumber("slideInces", (Xr[0]+Xr[1])/2.0)
+            table.putNumber("slideInches", (Xr[0]+Xr[1])/2.0)
             table.putNumber("rateTurn" , angle)
         else :
             table.putNumber("targetTurn", 999)
