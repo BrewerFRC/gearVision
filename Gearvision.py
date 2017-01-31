@@ -17,37 +17,21 @@ if len(sys.argv) > 1:  #python filename is always in arg list, so look for 2 or 
 else:
     showImages = True
 
-#robot shop
-#LOWER_HSV = numpy.array([57,206,30])
-#UPPER_HSV = numpy.array([105,255,255])
-#Gym
-#LOWER_HSV = numpy.array([30,23,50])
-#UPPER_HSV = numpy.array([104,255,220])
-#At Pine Tree
-#LOWER_HSV = numpy.array([49,26,112])
-#UPPER_HSV = numpy.array([94,255,226])
-# Camera with Exposure in Night mode
-#LOWER_HSV = numpy.array([45,162,130])
-#UPPER_HSV = numpy.array([78,255,255])
 LOWER_HSV = numpy.array([43,113,130])
 UPPER_HSV = numpy.array([99,255,255])
 
 #These constants control goal detection values
 
-#Parameters for robot turning speed
-TURN_SCALE = 0.011           #Multiplier to determine turn rate, given error from center in pixels that will determine the robot turn rate
-TURN_MAX_RATE = 0.9        #Fastest turn rate allowed
-TURN_MIN_RATE = 0.55      #was .7 Slowest turn rate allowed
 
 # Setup PiCamera for capture
 # IMG_WIDTH = 240
 # IMG_HEIGHT = 180
 IMG_WIDTH = 640
 IMG_HEIGHT = 360
+IMG_CENTER_ERROR = 0
 video = pistream.PiVideoStream((IMG_WIDTH,IMG_HEIGHT)).start()
 time.sleep(2)  #Give camera a chance to stablize
 
-MINIMUM_ALIGN_DISTANCE = 20
 
 
 # Connect to roboRio via NetworkTable
@@ -59,23 +43,9 @@ table = NetworkTable.getTable("visionTracking")
 
 def dst2errorX(TargetCenter, Distance) :
     # theta = math.atan(TargetCenter/581.4)
-    theta = math.atan(TargetCenter/622.7722)
+    theta = math.atan((TargetCenter-IMG_CENTER_ERROR)/622.7722)
     return Distance*math.sin(theta)
 
-def calcRoboAngle(x,y) :
-    if x == 0 :
-        return 1000000 ,0
-    x = 2*x
-    a = y/math.sqrt(abs(x)) - MINIMUM_ALIGN_DISTANCE
-    # angle = math.atan((a/(2*math.sqrt(abs(x))))*(x/abs(x)))
-    angle = math.atan((a/(2*math.sqrt(abs(x)))))
-    d_angle = -a/4*(abs(x)**(-3/2.0))
-    d_angle = d_angle*x/abs(x)
-    d_angle = math.atan(d_angle)*math.pi/2
-    return angle, d_angle
-
-def pos2tempArc(x,y) :
-    a = y/math.sqrt(abs(x)) - MINIMUM_ALIGN_DISTANCE
 
 
 
@@ -137,7 +107,7 @@ def process():
                 x,y,w,h = cv2.boundingRect(c)
                 ratio = float(h) / float(w)
                 ratioError = ratio-5.0/2.0
-                if abs(ratioError) < 2.0 and  w*h > 30:
+                if abs(ratioError) < 1.5 and  w*h > 30:
                     center = x + (w/2)
                     # print h,w,area,center,turn
                     if okCount > 4:
@@ -153,43 +123,37 @@ def process():
         # print "RatioOkCount:",okCount
         i = 0
         markercount = 0
+        Yr = [0,0]
+        Xr = [0,0]
+        slideRate = 0
+        pixAngle = 0
         while  okCount> i+1:
             x,y,w,h = cv2.boundingRect(contours[OkCountours[i]])
             j = 0
             while i+j < okCount :
                 x_p,y_p,w_p,h_p = cv2.boundingRect(contours[OkCountours[i+j]])
                 if abs(abs(float(x - x_p) / ((h+h_p)/2.0))-(8.25/5.0)) < 1.0 and abs(y_p-y) < 15 and abs(h-h_p) < 10  :
-                    #Calculate position of each target
+                    # calculate each value
                     dist = [5*773.5/h, 5*773.5/h_p] #calculate distance based upon height of marker
                     Xr = [dst2errorX((x+(w/2.0))-IMG_WIDTH/2, dist[0]),dst2errorX((x_p+(w_p/2.0))-IMG_WIDTH/2, dist[1])]
                     Yr = [math.sqrt(dist[0]*dist[0]-Xr[0]*Xr[0]),math.sqrt(dist[1]*dist[1]-Xr[1]*Xr[1])]
-                    angle = math.pi - math.atan((Yr[1]-Yr[0])/(Xr[1]-Xr[0]))
-                    Xm = [Xr[0]*math.cos(angle)-Yr[0]*math.sin(angle),Xr[1]*math.cos(angle)-Yr[1]*math.sin(angle)]
-                    Ym = [-Xr[0]*math.sin(angle)-Yr[0]*math.cos(angle),-Xr[1]*math.sin(angle)-Yr[1]*math.cos(angle)]
-                    RoboAngle, dRoboAngle= calcRoboAngle((Xm[0]+Xm[1])/2.0,(Ym[0]+Ym[1])/2.0)
-                    # print "TargetAngle :" , round(math.degrees(angle-RoboAngle-math.pi/2),3)
-                    angle = h-h_p
-                    if abs(angle) > 5 :
-                        angle = 5*angle/abs(angle)
+                    angle = math.atan((Yr[1]-Yr[0])/(Xr[1]-Xr[0]))
+                    pixAngle = abs(h-h_p)
+                    if angle < 0 :
+                        pixAngle = -pixAngle
+                    if(abs(pixAngle) > 5) :
+                        pixAngle = 5*pixAngle/abs(pixAngle)
                     slideRate = (Xr[0]+Xr[1])/2.0
                     slideRate = slideRate/20
                     if abs(slideRate) > 1 :
-                        angle = slideRate/abs(slideRate)
+                        slideRate = slideRate/abs(slideRate)
+                    if abs(slideRate) < 0.025:
+                        slideRate = 0
                     markercount = markercount+1
-                    print angle, slideRate, (Yr[0]+Yr[1])/2.0
-                    if (Xm[0]+Xm[1]) < 0 :
-                        RoboAngle = -RoboAngle-math.pi
-                    # print "Height :",h,h_p , \
-                    # "TargetCenter :",x+w/2.0 - IMG_WIDTH/2, \
-                    # "Distance :", dist[0], \
-                    # "Markers",okCount ,\
-                    # "X :" , Xr[0], \
-                    # "Y :" , Yr[0] ,\
-                    # "TargetAngle :" , round(math.degrees(angle-RoboAngle-3*math.pi/2.0),3), math.degrees(dRoboAngle) ,\
-                    # "FPS :" , int(fps)
+
+                    #show the value
+                    print (x+x_p+(w_p+w)/2.0)/2.0-IMG_WIDTH/2
                     cv2.circle(img_bgr,(int((x+x_p+(w_p+w)/2.0)/2.0),int(((y+y_p)/2.0)+(h+h_p)/4.0)),3,(0,0,255), -1)
-                    # cv2.circle(img_bgr,int((x+w/2)),int((y+h/2)),3,(0,255,0), -1)
-                    # cv2.circle(img_bgr,int((x_p+w_p/2)),int((y_p+h_p/2)),3,(255,0,0), -1)
                     break
                 j = j +1
             i = i+1
@@ -201,33 +165,12 @@ def process():
 
         if markercount == 1 :
             table.putNumber("distance", (Yr[0]+Yr[1])/2.0)
-            table.putNumber("slideInches", (Xr[0]+Xr[1])/2.0)
-            table.putNumber("rateTurn" , angle)
+            table.putNumber("slideRate", slideRate)
+            table.putNumber("rateTurn" , pixAngle)
         else :
-            table.putNumber("targetTurn", 999)
-        table.putNumber("distance",(dist[0]+dist[1])/2.0)
-
-        # Check to see if robot wants us to save a picture
-        try:
-            takePicture = table.getNumber("takePicture")
-        except:
-            takePicture = 0
-
-        try:
-            if takePicture == 1:
-                print "Saving picture"
-                # Print width, height ,center, turn on image
-                text = "w"+str(w)+" h"+str(h)+" c"+str(center)+" t"+str(turn)
-                cv2.putText(img_bgr,text,(1,150),cv2.FONT_HERSHEY_SIMPLEX,.35,(255,255,255),1)
-                # Save image
-                cv2.imwrite("/home/pi/vision/captures/image" + str(imageCounter) + ".jpg", img_bgr, [cv2.IMWRITE_JPEG_QUALITY, 90])
-                imageCounter += 1
-                print "Image saved"
-                table.putNumber("takePicture",0)
-        except:
-            print "Failed to take picture"
-            raise
-            table.putNumber("takePicture",0)
+            table.putNumber("distance", 704)
+            table.putNumber("slideRate", 704)
+            table.putNumber("rateTurn" , 704)
 
         # Wait 1ms for keypress. q to quit.
         if cv2.waitKey(1) &0xFF == ord('q'):
