@@ -1,4 +1,3 @@
-#TODO : Coordinate rotation bug
 import numpy
 import cv2
 from picamera.array import PiRGBArray
@@ -134,7 +133,7 @@ def process():
                 x_p,y_p,w_p,h_p = cv2.boundingRect(contours[OkCountours[i+j]])
                 if abs(abs(float(x - x_p) / ((h+h_p)/2.0))-(8.25/5.0)) < 1.0 and abs(y_p-y) < 15 and abs(h-h_p) < 10  :
                     # calculate each value
-                    dist = [5*773.5/h, 5*773.5/h_p] #calculate distance based upon height of marker
+                    dist = [5*697.2/h, 5*697.2/h_p] #calculate distance based upon height of marker
                     Xr = [dst2errorX((x+(w/2.0))-IMG_WIDTH/2, dist[0]),dst2errorX((x_p+(w_p/2.0))-IMG_WIDTH/2, dist[1])]
                     Yr = [math.sqrt(dist[0]*dist[0]-Xr[0]*Xr[0]),math.sqrt(dist[1]*dist[1]-Xr[1]*Xr[1])]
                     angle = math.atan((Yr[1]-Yr[0])/(Xr[1]-Xr[0]))
@@ -152,7 +151,7 @@ def process():
                     markercount = markercount+1
 
                     #show the value
-                    print (x+x_p+(w_p+w)/2.0)/2.0-IMG_WIDTH/2
+                    print ((x+(w/2.0))-IMG_WIDTH/2)
                     cv2.circle(img_bgr,(int((x+x_p+(w_p+w)/2.0)/2.0),int(((y+y_p)/2.0)+(h+h_p)/4.0)),3,(0,0,255), -1)
                     break
                 j = j +1
