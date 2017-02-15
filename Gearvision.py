@@ -102,7 +102,7 @@ def process():
             turn = 0
             okCount = 0
             j = 0
-            OkCountours = [0,0,0,0,0,0,0,0]
+            OkCountours = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
             if len(contours) > 0:
                 #Check all contours, or until we see one that looks like a goal
                 for c in contours:
@@ -111,10 +111,10 @@ def process():
                     x,y,w,h = cv2.boundingRect(c)
                     ratio = float(h) / float(w)
                     ratioError = ratio-5.0/2.0
-                    if abs(ratioError) < 1.5 and  w*h > 30:
+                    if abs(ratioError) < 1.5 and  w*h > 100:
                         center = x + (w/2)
                         # print h,w,area,center,turn
-                        if okCount > 4:
+                        if okCount > 11:
                             print "Too much contours"
                             break
 
